@@ -1,4 +1,4 @@
-CREATE TABLE orders (
+CREATE TABLE IF NOT EXISTS "order" (
     order_uid          VARCHAR(255) PRIMARY KEY,
     track_number       VARCHAR(255) NOT NULL,
     entry              VARCHAR(50) NOT NULL,
@@ -12,8 +12,8 @@ CREATE TABLE orders (
     oof_shard          VARCHAR(10) NOT NULL
 );
 
-CREATE TABLE delivery (
-    order_uid VARCHAR(255) PRIMARY KEY REFERENCES orders(order_uid) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS delivery (
+    order_uid VARCHAR(255) PRIMARY KEY REFERENCES "order"(order_uid) ON DELETE CASCADE,
     name      VARCHAR(255) NOT NULL,
     phone     VARCHAR(20) NOT NULL,
     zip       VARCHAR(20) NOT NULL,
@@ -23,8 +23,8 @@ CREATE TABLE delivery (
     email     VARCHAR(100) NOT NULL
 );
 
-CREATE TABLE payment (
-    order_uid     VARCHAR(255) PRIMARY KEY REFERENCES orders(order_uid) ON DELETE CASCADE,
+CREATE TABLE IF NOT EXISTS payment (
+    order_uid     VARCHAR(255) PRIMARY KEY REFERENCES "order"(order_uid) ON DELETE CASCADE,
     transaction   VARCHAR(255) NOT NULL,
     request_id    VARCHAR(255),
     currency      VARCHAR(10) NOT NULL,
@@ -37,9 +37,9 @@ CREATE TABLE payment (
     custom_fee    INTEGER NOT NULL
 );
 
-CREATE TABLE items (
+CREATE TABLE IF NOT EXISTS item (
     id           SERIAL PRIMARY KEY,
-    order_uid    VARCHAR(255) NOT NULL REFERENCES orders(order_uid) ON DELETE CASCADE,
+    order_uid    VARCHAR(255) NOT NULL REFERENCES "order"(order_uid) ON DELETE CASCADE,
     chrt_id      BIGINT NOT NULL,
     track_number VARCHAR(255) NOT NULL,
     price        INTEGER NOT NULL,

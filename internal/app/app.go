@@ -1,47 +1,42 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"time"
 
 	"orders/internal/models"
-
-	"github.com/jackc/pgx/v5"
+	"orders/internal/repository"
 )
 
 type App struct {
-	conn *pgx.Conn
+	// conn *pgx.Conn
+	repo repository.OrderRepo
 }
 
-func NewApp(dburl string) (*App, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+/*
+GET http://localhost:8081/order/<order_uid> должен вернуть JSON с информацией о заказе
+-> получение по order_id
 
-	conn, err := pgx.Connect(ctx, dburl)
+добавление из json
+*/
+
+func NewApp(dburl string) (*App, error) {
+	app := &App{}
+	err := app.repo.InitRepo(dburl)
 	if err != nil {
-		log.Printf("Couldn't connect to db by url %s: %s\n", dburl, err)
+		log.Printf("Failed to init repo: %v", err)
 		return nil, err
 	}
-	app := &App{
-		conn: conn,
-	}
-
 	return app, nil
 }
 
 func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Opened home page")
 	w.Write([]byte("Welcome Home!\n\n"))
-	rows, err := a.conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
-       internal_signature, customer_id,delivery_service,shardkey, sm_id,
-       date_created, oof_shard FROM orders`)
-	if err != nil {
-		fmt.Fprintf(w, "Shit happened: %s", err)
-		return
-	}
+	rows := a.repo.GetAllRows()
 	for rows.Next() {
 		var (
 			orderUID          string
@@ -80,97 +75,79 @@ func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+func randomString(length int) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = letterBytes[rand.Intn(len(letterBytes))]
+	}
+	return string(b)
+}
+
 func (a *App) Insert(w http.ResponseWriter, r *http.Request) {
 	log.Println("Opened insert page")
+	uid := randomString(19)
+	log.Printf("random uid is %v\n", uid)
 
-	tx, err := a.conn.Begin(context.Background())
-	if err != nil {
-		log.Fatalf("Unable to begin transaction: %v\n", err)
-	}
-	defer tx.Rollback(context.Background()) // Безопасный откат если не будет Commit
-
-	// Тестовые данные
 	order := models.Order{
-		OrderUID:          "pgx_test_123",
-		TrackNumber:       "TRACK_PGX_001",
+		OrderUID:          uid,
+		TrackNumber:       "WBILMTESTTRACK",
 		Entry:             "WBIL",
 		Locale:            "en",
 		InternalSignature: "",
-		CustomerID:        "test_customer",
-		DeliveryService:   "pgx_delivery",
-		Shardkey:          "1",
+		CustomerID:        "test",
+		DeliveryService:   "meest",
+		Shardkey:          "9",
 		SmID:              99,
-		DateCreated:       time.Now(),
+		DateCreated:       time.Date(2021, 11, 26, 6, 22, 19, 0, time.UTC),
 		OofShard:          "1",
+		Delivery: models.Delivery{
+			OrderUID: uid,
+			Name:     "Test Testov",
+			Phone:    "+9720000000",
+			Zip:      "2639809",
+			City:     "Kiryat Mozkin",
+			Address:  "Ploshad Mira 15",
+			Region:   "Kraiot",
+			Email:    "test@gmail.com",
+		},
+		Payment: models.Payment{
+			OrderUID:     uid,
+			Transaction:  uid,
+			RequestID:    "",
+			Currency:     "USD",
+			Provider:     "wbpay",
+			Amount:       1817,
+			PaymentDt:    1637907727,
+			Bank:         "alpha",
+			DeliveryCost: 1500,
+			GoodsTotal:   317,
+			CustomFee:    0,
+		},
+		Items: []models.Item{
+			{
+				ID:          1,
+				OrderUID:    uid,
+				ChrtID:      9934930,
+				TrackNumber: "WBILMTESTTRACK",
+				Price:       453,
+				Rid:         "ab4219087a764ae0btest",
+				Name:        "Mascaras",
+				Sale:        30,
+				Size:        "0",
+				TotalPrice:  317,
+				NmID:        2389212,
+				Brand:       "Vivienne Sabo",
+				Status:      202,
+			},
+		},
 	}
 
-	// 1. Вставка заказа
-	_, err = tx.Exec(context.Background(), `
-		INSERT INTO orders (order_uid, track_number, entry, locale, internal_signature, 
-			customer_id, delivery_service, shardkey, sm_id, date_created, oof_shard)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		order.OrderUID, order.TrackNumber, order.Entry, order.Locale, order.InternalSignature,
-		order.CustomerID, order.DeliveryService, order.Shardkey, order.SmID, order.DateCreated, order.OofShard)
-	if err != nil {
-		log.Fatalf("Insert order failed: %v\n", err)
-	}
-
-	// 2. Вставка доставки
-	_, err = tx.Exec(context.Background(), `
-		INSERT INTO delivery (order_uid, name, phone, zip, city, address, region, email)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		order.OrderUID, "PGX Test User", "+1234567890", "123456", "PGX City", "PGX Address", "PGX Region", "pgx@test.com")
-	if err != nil {
-		log.Fatalf("Insert delivery failed: %v\n", err)
-	}
-
-	// 3. Вставка платежа
-	_, err = tx.Exec(context.Background(), `
-		INSERT INTO payment (order_uid, transaction, request_id, currency, provider, 
-			amount, payment_dt, bank, delivery_cost, goods_total, custom_fee)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		order.OrderUID, "pgx_txn_123", "", "USD", "pgx_pay", 1000, time.Now().Unix(), "pgx_bank", 500, 500, 0)
-	if err != nil {
-		log.Fatalf("Insert payment failed: %v\n", err)
-	}
-
-	// 4. Вставка товаров
-	items := []struct {
-		ChrtID      int64
-		TrackNumber string
-		Price       int
-		Rid         string
-		Name        string
-		Sale        int
-		Size        string
-		TotalPrice  int
-		NmID        int64
-		Brand       string
-		Status      int
-	}{
-		{9934930, "TRACK_PGX_001", 453, "rid_pgx_1", "PGX Product 1", 30, "0", 317, 2389212, "PGX Brand", 202},
-		{11223344, "TRACK_PGX_001", 1000, "rid_pgx_2", "PGX Product 2", 10, "1", 900, 55667788, "PGX Brand", 200},
-	}
-
-	for _, item := range items {
-		_, err = tx.Exec(context.Background(), `
-			INSERT INTO items (order_uid, chrt_id, track_number, price, rid, name, 
-				sale, size, total_price, nm_id, brand, status)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
-			order.OrderUID, item.ChrtID, item.TrackNumber, item.Price, item.Rid, item.Name,
-			item.Sale, item.Size, item.TotalPrice, item.NmID, item.Brand, item.Status)
-		if err != nil {
-			log.Fatalf("Insert item failed: %v\n", err)
-		}
-	}
-
-	// Фиксация транзакции
-	err = tx.Commit(context.Background())
-	if err != nil {
-		log.Fatalf("Commit failed: %v\n", err)
-	}
+	a.repo.Store(order)
 
 }
+
 func (a *App) Close() {
-	a.conn.Close(context.Background())
+	// a.repo.conn.Close(context.Background()) //TODO
 }
