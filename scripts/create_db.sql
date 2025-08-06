@@ -52,3 +52,6 @@ CREATE TABLE items (
     brand        VARCHAR(255) NOT NULL,
     status       INTEGER NOT NULL
 );
+
+CREATE USER order_user WITH PASSWORD 'password';
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO order_user;
