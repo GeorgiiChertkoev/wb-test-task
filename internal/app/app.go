@@ -1,6 +1,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -38,39 +39,32 @@ func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Welcome Home!\n\n"))
 	rows := a.repo.GetAllRows()
 	for rows.Next() {
-		var (
-			orderUID          string
-			trackNumber       string
-			entry             string
-			locale            string
-			internalSignature string
-			customerID        string
-			deliveryService   string
-			shardkey          string
-			smID              int
-			dateCreated       time.Time
-			oofShard          string
-		)
+		var new_order models.Order
 
-		err := rows.Scan(&orderUID, &trackNumber, &entry, &locale,
-			&internalSignature, &customerID, &deliveryService,
-			&shardkey, &smID, &dateCreated, &oofShard)
+		err := rows.Scan(&new_order.OrderUID, &new_order.TrackNumber, &new_order.Entry, &new_order.Locale,
+			&new_order.InternalSignature, &new_order.CustomerID, &new_order.DeliveryService,
+			&new_order.Shardkey, &new_order.SmID, &new_order.DateCreated, &new_order.OofShard)
 		if err != nil {
 			log.Printf("Error scanning row: %v", err)
 			continue
 		}
 
-		fmt.Fprintf(w, "Order UID: %s\n", orderUID)
-		fmt.Fprintf(w, "Track Number: %s\n", trackNumber)
-		fmt.Fprintf(w, "Entry: %s\n", entry)
-		fmt.Fprintf(w, "Locale: %s\n", locale)
-		fmt.Fprintf(w, "Internal Signature: %s\n", internalSignature)
-		fmt.Fprintf(w, "Customer ID: %s\n", customerID)
-		fmt.Fprintf(w, "Delivery Service: %s\n", deliveryService)
-		fmt.Fprintf(w, "Shardkey: %s\n", shardkey)
-		fmt.Fprintf(w, "SM ID: %d\n", smID)
-		fmt.Fprintf(w, "Date Created: %s\n", dateCreated.Format(time.RFC3339))
-		fmt.Fprintf(w, "OOF Shard: %s\n", oofShard)
+		json_data, err := json.MarshalIndent(new_order, "", "\t")
+		if err != nil {
+			log.Printf("Error making json: %v", err)
+		}
+		fmt.Fprintf(w, "%s\n", json_data)
+		// fmt.Fprintf(w, "Order UID: %s\n", orderUID)
+		// fmt.Fprintf(w, "Track Number: %s\n", trackNumber)
+		// fmt.Fprintf(w, "Entry: %s\n", entry)
+		// fmt.Fprintf(w, "Locale: %s\n", locale)
+		// fmt.Fprintf(w, "Internal Signature: %s\n", internalSignature)
+		// fmt.Fprintf(w, "Customer ID: %s\n", customerID)
+		// fmt.Fprintf(w, "Delivery Service: %s\n", deliveryService)
+		// fmt.Fprintf(w, "Shardkey: %s\n", shardkey)
+		// fmt.Fprintf(w, "SM ID: %d\n", smID)
+		// fmt.Fprintf(w, "Date Created: %s\n", dateCreated.Format(time.RFC3339))
+		// fmt.Fprintf(w, "OOF Shard: %s\n", oofShard)
 		fmt.Fprintf(w, "----------------------------------------\n")
 	}
 }
