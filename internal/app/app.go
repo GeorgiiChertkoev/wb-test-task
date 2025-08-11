@@ -10,6 +10,8 @@ import (
 
 	"orders/internal/models"
 	"orders/internal/repository"
+
+	"github.com/gorilla/mux"
 )
 
 type App struct {
@@ -67,6 +69,25 @@ func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 		// fmt.Fprintf(w, "OOF Shard: %s\n", oofShard)
 		fmt.Fprintf(w, "----------------------------------------\n")
 	}
+}
+
+func (a *App) GetById(w http.ResponseWriter, r *http.Request) {
+	order_uid := mux.Vars(r)["order_uid"]
+	order, found, err := a.repo.Find(order_uid)
+	if !found {
+		fmt.Fprintf(w, "order %v not found\n", order_uid)
+		return
+	} else if err != nil {
+		fmt.Fprintf(w, "internal error\n")
+		log.Printf("Error while searching by id: %v", err)
+		return
+	}
+	json_data, err := json.MarshalIndent(order, "", "\t")
+	if err != nil {
+		log.Printf("Error making json: %v", err)
+	}
+	fmt.Fprintf(w, "%s\n", json_data)
+
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"

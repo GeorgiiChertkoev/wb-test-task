@@ -36,6 +36,12 @@ func (repo *OrderRepo) Store(ord models.Order) error {
 	repo.saveToDB(ord)
 	return nil
 }
+
+func (repo *OrderRepo) Find(order_uid string) (order models.Order, found bool, err error) {
+	// check cache
+	order, found, err = repo.getFromDB(order_uid)
+	return
+}
 func (repo *OrderRepo) GetAllRows() pgx.Rows {
 	rows, err := repo.conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
        internal_signature, customer_id,delivery_service,shardkey, sm_id,
@@ -135,4 +141,86 @@ func (repo *OrderRepo) saveToDB(order models.Order) error {
 	return nil
 }
 
-// Get
+func (repo *OrderRepo) getFromDB(order_uid string) (order models.Order, found bool, err error) {
+	ctx := context.Background()
+	found = true
+	tx, err := repo.conn.BeginTx(ctx, pgx.TxOptions{
+		IsoLevel: pgx.ReadCommitted,
+	})
+	defer tx.Rollback(ctx)
+
+	row := tx.QueryRow(ctx, `SELECT * FROM "order" WHERE order_uid = $1`, order_uid)
+	err = row.Scan(&order.OrderUID,
+		&order.TrackNumber,
+		&order.Entry,
+		&order.Locale,
+		&order.InternalSignature,
+		&order.CustomerID,
+		&order.DeliveryService,
+		&order.Shardkey,
+		&order.SmID,
+		&order.DateCreated,
+		&order.OofShard,
+	)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			found = false
+			err = nil
+			log.Printf("didn't find order with id = %v\n", order_uid)
+			return
+		}
+		log.Printf("Querry by id failed: %v", err)
+		return
+	}
+	row = tx.QueryRow(ctx, "SELECT * FROM delivery WHERE order_uid = $1", order_uid)
+
+	err = row.Scan(
+		&order.Delivery.OrderUID,
+		&order.Delivery.Name,
+		&order.Delivery.Phone,
+		&order.Delivery.Zip,
+		&order.Delivery.City,
+		&order.Delivery.Address,
+		&order.Delivery.Region,
+		&order.Delivery.Email,
+	)
+	if err != nil && err != pgx.ErrNoRows { // order without delivery is possible
+		log.Printf("Querry by id failed at delivery: %v", err)
+		return
+	}
+	row = tx.QueryRow(ctx, "SELECT * FROM payment WHERE order_uid = $1", order_uid)
+
+	err = row.Scan(
+		&order.Payment.OrderUID,
+		&order.Payment.Transaction,
+		&order.Payment.RequestID,
+		&order.Payment.Currency,
+		&order.Payment.Provider,
+		&order.Payment.Amount,
+		&order.Payment.PaymentDt,
+		&order.Payment.Bank,
+		&order.Payment.DeliveryCost,
+		&order.Payment.GoodsTotal,
+		&order.Payment.CustomFee,
+	)
+	if err != nil && err != pgx.ErrNoRows { // order without payment is possible
+		log.Printf("Querry by id failed at payment: %v", err)
+		return
+	}
+
+	rows, err := tx.Query(ctx, "SELECT * FROM item WHERE order_uid = $1", order_uid)
+	if err != nil {
+		log.Printf("Querry by id failed at items: %v", err)
+		return
+	}
+	defer rows.Close()
+	items, err := pgx.CollectRows(rows, pgx.RowToStructByName[models.Item])
+	if err != nil {
+		log.Printf("Error while collecting items: %v", err)
+		return
+	}
+	order.Items = items
+
+	return
+
+}
