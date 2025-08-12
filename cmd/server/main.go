@@ -27,7 +27,7 @@ func main() {
 	// Define routes
 	r.HandleFunc("/", myApp.HomeHandler)
 	r.HandleFunc("/api/add", myApp.Insert)
-	// r.HandleFunc("/api/greet/{name}", greetHandler).Methods("GET")
+	r.HandleFunc("/order/{order_uid}", myApp.GetById)
 	log.Println("Server is up")
 	http.ListenAndServe(":8080", r)
 }
