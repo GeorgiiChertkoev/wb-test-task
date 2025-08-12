@@ -7,6 +7,12 @@ import (
 	"orders/internal/models"
 )
 
+/*
+
+	UNTESTED
+
+*/
+
 type Cache struct {
 	/*
 		Кэш с LRU политикой вытеснения
@@ -53,7 +59,7 @@ func (c *Cache) Add(order *models.Order) {
 		return
 	}
 
-	c.cacheList.PushFront(*order)
+	c.cacheList.PushFront(order)
 	c.cacheMap[order.OrderUID] = c.cacheList.Front()
 	if c.cacheList.Len() > c.capacity {
 		delete(c.cacheMap, c.cacheList.Back().Value.(*models.Order).OrderUID)
