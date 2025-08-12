@@ -159,7 +159,7 @@ func (a *App) Insert(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	a.repo.Store(order)
+	a.repo.Store(&order)
 
 }
 
