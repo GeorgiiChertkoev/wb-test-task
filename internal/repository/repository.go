@@ -7,7 +7,7 @@ import (
 	"log"
 
 	"orders/internal/cache"
-	"orders/internal/models"
+	"orders/pkg/models"
 
 	"github.com/jackc/pgx/v5"
 )

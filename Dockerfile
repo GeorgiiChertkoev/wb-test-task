@@ -12,5 +12,5 @@ COPY --from=builder /order-service .
 COPY web ./web
 # COPY config ./config
 
-EXPOSE 8080
+EXPOSE 8081
 CMD ["./order-service"]

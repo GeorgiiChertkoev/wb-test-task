@@ -4,7 +4,7 @@ import (
 	"container/list"
 	"sync"
 
-	"orders/internal/models"
+	"orders/pkg/models"
 )
 
 /*

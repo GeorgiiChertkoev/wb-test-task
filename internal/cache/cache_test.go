@@ -1,16 +1,14 @@
 package cache
 
 import (
-	"math/rand"
-	"orders/internal/models"
+	"orders/pkg/models"
 	"testing"
-	"time"
 )
 
 func TestCache_BaseFunctionality(t *testing.T) {
 	cache := MakeCache(5)
 
-	saved_order := makeRandomOrder()
+	saved_order := models.MakeRandomOrder()
 	cache.Add(saved_order)
 
 	from_cache, found := cache.Get(saved_order.OrderUID)
@@ -34,9 +32,9 @@ func TestCache_SearchInEmptyCache(t *testing.T) {
 func TestCache_CacheEviction(t *testing.T) {
 	cache := MakeCache(2)
 
-	order1 := makeRandomOrder()
-	order2 := makeRandomOrder()
-	order3 := makeRandomOrder()
+	order1 := models.MakeRandomOrder()
+	order2 := models.MakeRandomOrder()
+	order3 := models.MakeRandomOrder()
 
 	cache.Add(order1)
 	cache.Add(order2)
@@ -58,9 +56,9 @@ func TestCache_CacheEviction(t *testing.T) {
 func TestCache_LRUOrderCheck(t *testing.T) {
 	cache := MakeCache(2)
 
-	order1 := makeRandomOrder()
-	order2 := makeRandomOrder()
-	order3 := makeRandomOrder()
+	order1 := models.MakeRandomOrder()
+	order2 := models.MakeRandomOrder()
+	order3 := models.MakeRandomOrder()
 
 	cache.Add(order1)
 	cache.Add(order2)
@@ -79,73 +77,4 @@ func TestCache_LRUOrderCheck(t *testing.T) {
 	if _, found := cache.Get(order3.OrderUID); !found {
 		t.Error("Order3 should still be in cache")
 	}
-}
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func randomString(length int) string {
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = letterBytes[rand.Intn(len(letterBytes))]
-	}
-	return string(b)
-}
-
-func makeRandomOrder() *models.Order {
-	uid := randomString(19)
-
-	order := &models.Order{
-		OrderUID:          uid,
-		TrackNumber:       randomString(10),
-		Entry:             randomString(4),
-		Locale:            "en",
-		InternalSignature: "",
-		CustomerID:        "test",
-		DeliveryService:   "meest",
-		Shardkey:          "9",
-		SmID:              99,
-		DateCreated:       time.Date(2021, 11, 26, 6, 22, 19, 0, time.UTC),
-		OofShard:          "1",
-		Delivery: models.Delivery{
-			OrderUID: uid,
-			Name:     "Test Testov",
-			Phone:    "+9720000000",
-			Zip:      "2639809",
-			City:     "Kiryat Mozkin",
-			Address:  "Ploshad Mira 15",
-			Region:   "Kraiot",
-			Email:    "test@gmail.com",
-		},
-		Payment: models.Payment{
-			OrderUID:     uid,
-			Transaction:  uid,
-			RequestID:    "",
-			Currency:     "USD",
-			Provider:     "wbpay",
-			Amount:       1817,
-			PaymentDt:    1637907727,
-			Bank:         "alpha",
-			DeliveryCost: 1500,
-			GoodsTotal:   317,
-			CustomFee:    0,
-		},
-		Items: []models.Item{
-			{
-				ID:          1,
-				OrderUID:    uid,
-				ChrtID:      9934930,
-				TrackNumber: "WBILMTESTTRACK",
-				Price:       453,
-				Rid:         "ab4219087a764ae0btest",
-				Name:        "Mascaras",
-				Sale:        30,
-				Size:        "0",
-				TotalPrice:  317,
-				NmID:        2389212,
-				Brand:       "Vivienne Sabo",
-				Status:      202,
-			},
-		},
-	}
-	return order
 }
