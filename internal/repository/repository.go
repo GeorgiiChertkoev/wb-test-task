@@ -31,36 +31,13 @@ func (repo *OrderRepo) InitRepo(dburl string) error {
 
 	repo.cache = *cache.MakeCache(cache_capacity)
 	// fill cache
-	rows, err := repo.conn.Query(context.Background(),
-		`SELECT order_uid FROM "order" LIMIT $1`, cache_capacity)
+	orders, err := repo.GetOrders(cache_capacity)
 	if err != nil {
-		log.Printf("Failed to fetch ids to fill cache: %s", err)
-	}
-
-	var uids []string
-	for rows.Next() {
-		var uid string
-		if err := rows.Scan(&uid); err != nil {
-			log.Printf("Error while scanning ids for cache: %v", err)
-			return err
-		}
-		uids = append(uids, uid)
-	}
-
-	if err := rows.Err(); err != nil {
-		log.Printf("rows iteration error: %v", err)
+		log.Printf("failed to init cache: %v", err)
 		return err
 	}
-	rows.Close()
-
-	for i := 0; i < len(uids); i++ {
-		order, found, err := repo.getFromDB(uids[i])
-		if !found {
-			log.Printf("order %v not found\n", uids[i])
-		} else if err != nil {
-			log.Printf("Error while searching by id: %v", err)
-		}
-		repo.cache.Add(&order)
+	for i := 0; i < len(orders); i++ {
+		repo.cache.Add(&orders[i])
 	}
 
 	return nil
@@ -88,13 +65,56 @@ func (repo *OrderRepo) Find(order_uid string) (order models.Order, found bool, e
 }
 
 func (repo *OrderRepo) GetAllRows() pgx.Rows {
+	/* TEST FUNCTION */
 	rows, err := repo.conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
        internal_signature, customer_id,delivery_service,shardkey, sm_id,
        date_created, oof_shard FROM "order"`)
 	if err != nil {
-		log.Printf("Shit happened: %s", err)
+		log.Printf("Failed to get all rows: %v", err)
 	}
 	return rows
+}
+
+func (repo *OrderRepo) GetOrders(quantity int) ([]models.Order, error) {
+	rows, err := repo.conn.Query(context.Background(),
+		`SELECT order_uid FROM "order" LIMIT $1`, quantity)
+	if err != nil {
+		log.Printf("Failed to fetch ids to to get orders: %v", err)
+		return nil, err
+	}
+
+	var uids []string
+	for rows.Next() {
+		var uid string
+		if err := rows.Scan(&uid); err != nil {
+			log.Printf("Error while scanning ids: %v", err)
+			return nil, err
+		}
+		uids = append(uids, uid)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Printf("rows iteration error: %v", err)
+		return nil, err
+	}
+	rows.Close()
+
+	var orders []models.Order
+	for i := 0; i < len(uids); i++ {
+		order, found, err := repo.getFromDB(uids[i])
+		if !found {
+			log.Printf("order %v not found\n", uids[i])
+		} else if err != nil {
+			log.Printf("Error while searching by id: %v", err)
+		}
+		orders = append(orders, order)
+	}
+	return orders, nil
+}
+
+func (repo *OrderRepo) Close() {
+	repo.conn.Close(context.Background())
+
 }
 
 func (repo *OrderRepo) saveToDB(order *models.Order) error {
@@ -123,7 +143,7 @@ func (repo *OrderRepo) saveToDB(order *models.Order) error {
 	}
 	delivery := &order.Delivery
 	_, err = tx.Exec(context.Background(), insertIntoDelivery,
-		delivery.OrderUID,
+		order.OrderUID,
 		delivery.Name,
 		delivery.Phone,
 		delivery.Zip,
@@ -138,7 +158,7 @@ func (repo *OrderRepo) saveToDB(order *models.Order) error {
 	}
 	payment := &order.Payment
 	_, err = tx.Exec(context.Background(), insertIntoPayment,
-		payment.OrderUID,
+		order.OrderUID,
 		payment.Transaction,
 		payment.RequestID,
 		payment.Currency,
@@ -159,7 +179,7 @@ func (repo *OrderRepo) saveToDB(order *models.Order) error {
 	for i := 0; i < len(order.Items); i++ {
 		item := &order.Items[i]
 		_, err = tx.Exec(context.Background(), insertIntoItem,
-			item.OrderUID,
+			order.OrderUID,
 			item.ChrtID,
 			item.TrackNumber,
 			item.Price,

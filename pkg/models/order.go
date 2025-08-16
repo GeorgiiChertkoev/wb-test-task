@@ -37,6 +37,8 @@ func MakeRandomOrder() *Order {
 		totalItemPrice := price * (100 - sale) / 100
 
 		items[i] = Item{
+			ID:          i,
+			OrderUID:    orderUID,
 			ChrtID:      gofakeit.Int64(),
 			TrackNumber: trackNumber,
 			Price:       price,
@@ -60,13 +62,14 @@ func MakeRandomOrder() *Order {
 		TrackNumber: trackNumber,
 		Entry:       gofakeit.RandomString([]string{"WBIL", "WBIL2", "WBIL3"}),
 		Delivery: Delivery{
-			Name:    gofakeit.Name(),
-			Phone:   gofakeit.Phone(),
-			Zip:     gofakeit.Zip(),
-			City:    gofakeit.City(),
-			Address: gofakeit.Street(),
-			Region:  gofakeit.State(),
-			Email:   gofakeit.Email(),
+			OrderUID: orderUID,
+			Name:     gofakeit.Name(),
+			Phone:    gofakeit.Phone(),
+			Zip:      gofakeit.Zip(),
+			City:     gofakeit.City(),
+			Address:  gofakeit.Street(),
+			Region:   gofakeit.State(),
+			Email:    gofakeit.Email(),
 		},
 		Payment: Payment{
 			Transaction:  orderUID,

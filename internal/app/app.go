@@ -1,7 +1,9 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,11 +12,13 @@ import (
 	"orders/pkg/models"
 
 	"github.com/gorilla/mux"
+	"github.com/segmentio/kafka-go"
 )
 
 type App struct {
-	// conn *pgx.Conn
-	repo repository.OrderRepo
+	repo         repository.OrderRepo
+	kafka_reader *kafka.Reader
+	stop_channel chan struct{} // канал для остановки горутины чтения из кафки
 }
 
 func NewApp(dburl string) (*App, error) {
@@ -25,40 +29,31 @@ func NewApp(dburl string) (*App, error) {
 		return nil, err
 	}
 
+	app.kafka_reader = kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"kafka:9092"},
+		Topic:   "orders",
+		GroupID: "orders-consumer-group",
+	})
+
+	go app.runConsumer()
+
 	return app, nil
 }
 
 func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("Opened home page")
 	w.Write([]byte("Welcome Home!\n\n"))
-	rows := a.repo.GetAllRows()
-	for rows.Next() {
-		var new_order models.Order
-
-		err := rows.Scan(&new_order.OrderUID, &new_order.TrackNumber, &new_order.Entry, &new_order.Locale,
-			&new_order.InternalSignature, &new_order.CustomerID, &new_order.DeliveryService,
-			&new_order.Shardkey, &new_order.SmID, &new_order.DateCreated, &new_order.OofShard)
-		if err != nil {
-			log.Printf("Error scanning row: %v", err)
-			continue
-		}
-
-		json_data, err := json.MarshalIndent(new_order, "", "\t")
+	orders, err := a.repo.GetOrders(50)
+	if err != nil {
+		log.Printf("Failed to get orders for homepage: %v", err)
+		return
+	}
+	for i := 0; i < len(orders); i++ {
+		json_data, err := json.MarshalIndent(orders[i], "", "\t")
 		if err != nil {
 			log.Printf("Error making json: %v", err)
 		}
 		fmt.Fprintf(w, "%s\n", json_data)
-		// fmt.Fprintf(w, "Order UID: %s\n", orderUID)
-		// fmt.Fprintf(w, "Track Number: %s\n", trackNumber)
-		// fmt.Fprintf(w, "Entry: %s\n", entry)
-		// fmt.Fprintf(w, "Locale: %s\n", locale)
-		// fmt.Fprintf(w, "Internal Signature: %s\n", internalSignature)
-		// fmt.Fprintf(w, "Customer ID: %s\n", customerID)
-		// fmt.Fprintf(w, "Delivery Service: %s\n", deliveryService)
-		// fmt.Fprintf(w, "Shardkey: %s\n", shardkey)
-		// fmt.Fprintf(w, "SM ID: %d\n", smID)
-		// fmt.Fprintf(w, "Date Created: %s\n", dateCreated.Format(time.RFC3339))
-		// fmt.Fprintf(w, "OOF Shard: %s\n", oofShard)
 		fmt.Fprintf(w, "----------------------------------------\n")
 	}
 }
@@ -86,9 +81,48 @@ func (a *App) Insert(w http.ResponseWriter, r *http.Request) {
 	log.Println("Opened insert page")
 
 	a.repo.Store(models.MakeRandomOrder())
+}
+
+func (a *App) runConsumer() {
+	log.Println("Consumer started")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		<-a.stop_channel
+		cancel()
+	}()
+
+	for {
+		m, err := a.kafka_reader.ReadMessage(ctx)
+		if err != nil {
+			// для остановки горутины отменим контекст когда закроется a.stop_channel
+			if errors.Is(err, context.Canceled) {
+				log.Println("Kafka consumer stopped")
+				return
+			}
+			log.Println("read error:", err)
+			continue
+		}
+		new_order := models.Order{}
+		err = json.Unmarshal(m.Value, &new_order)
+		if err != nil {
+			log.Printf("Failed to unmarshal order: %v", err)
+			continue
+		}
+		json_text, _ := json.MarshalIndent(new_order, "", "\t")
+		log.Println("consumed:", string(json_text))
+
+		err = a.repo.Store(&new_order)
+		if err != nil {
+			log.Printf("Failed to store kafka order: %v", err)
+		}
+	}
 
 }
 
 func (a *App) Close() {
-	// a.repo.conn.Close(context.Background()) //TODO
+	close(a.stop_channel)
+	a.repo.Close()
+	a.kafka_reader.Close()
 }
