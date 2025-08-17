@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/GeorgiiChertkoev/wb-test-task/pkg/models"
 
@@ -29,14 +30,14 @@ func MakeTestProducer() *TestProducer {
 	}
 }
 
-func (t *TestProducer) ProduceRandomOrder() error {
+func (t *TestProducer) ProduceRandomOrder() (*models.Order, error) {
 
 	order := models.MakeRandomOrder()
 
 	orderJSON, err := json.Marshal(order)
 	if err != nil {
 		log.Printf("failed to Marshal order: %v", err)
-		return err
+		return nil, err
 	}
 	err = t.writer.WriteMessages(context.Background(),
 		kafka.Message{
@@ -46,9 +47,9 @@ func (t *TestProducer) ProduceRandomOrder() error {
 
 	if err != nil {
 		log.Printf("Failed to send order: %v", err)
-		return err
+		return nil, err
 	}
-	return nil
+	return order, nil
 }
 
 func (t *TestProducer) Close() {
@@ -56,7 +57,14 @@ func (t *TestProducer) Close() {
 }
 
 func main() {
-	testKafka()
+	// пытаемя подключиться к кафке и создать топик
+	for i := 0; i < 5; i++ {
+		err := testKafka()
+		if err == nil {
+			break
+		}
+		time.Sleep(2 * time.Second)
+	}
 
 	fmt.Println("Producer is up")
 
@@ -69,22 +77,24 @@ func main() {
 		fmt.Fprintf(w, "producer is fine")
 	})
 	r.HandleFunc("/produce", func(w http.ResponseWriter, r *http.Request) {
-		err := producer.ProduceRandomOrder()
+		order, err := producer.ProduceRandomOrder()
 		if err != nil {
 			fmt.Fprintf(w, "Failed to produce: %v", err)
 		} else {
-			fmt.Fprintf(w, "Successfully produced")
+			fmt.Fprintf(w, "Successfully produced order with id: %v", order.OrderUID)
 		}
 	})
 	http.ListenAndServe(":8082", r)
 
 }
 
-func testKafka() {
+func testKafka() error {
 	conn, err := kafka.Dial("tcp", "kafka:9092")
 	if err != nil {
 		log.Printf("Failed to connect: %v", err)
+		return err
 	}
+
 	defer conn.Close()
 
 	topics, _ := conn.ReadPartitions()
@@ -103,7 +113,9 @@ func testKafka() {
 			ReplicationFactor: 1,
 		})
 		if err != nil {
-			log.Fatalf("Failed to create topic: %v", err)
+			log.Printf("Failed to create topic: %v", err)
+			return err
 		}
 	}
+	return nil
 }

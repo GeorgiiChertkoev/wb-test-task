@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+    <html>
+    <head>
+        <title>Поиск заказа</title>
+        <style>
+            * {
+                box-sizing: border-box;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            }
+            body {
+                background-color: #f5f7fa;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+                color: #333;
+            }
+            .search-container {
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                margin-bottom: 30px;
+            }
+            .search-box {
+                padding: 15px;
+                width: 100%;
+                font-size: 18px;
+                border: 2px solid #ddd;
+                border-radius: 8px;
+                transition: border-color 0.3s;
+            }
+            .search-box:focus {
+                border-color: #4a6cf7;
+                outline: none;
+            }
+            .instructions {
+                margin-top: 15px;
+                color: #666;
+                font-size: 14px;
+            }
+            .order-container {
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+                display: none;
+            }
+            .order-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+                padding-bottom: 15px;
+                border-bottom: 1px solid #eee;
+            }
+            .order-id {
+                font-size: 22px;
+                font-weight: 600;
+                color: #2c3e50;
+            }
+            .track-number {
+                background: #e8f4ff;
+                color: #1a73e8;
+                padding: 5px 12px;
+                border-radius: 20px;
+                font-weight: 500;
+            }
+            .section {
+                margin-bottom: 30px;
+            }
+            .section-title {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 15px;
+                color: #1a73e8;
+                display: flex;
+                align-items: center;
+            }
+            .section-title::before {
+                content: "";
+                display: inline-block;
+                width: 4px;
+                height: 18px;
+                background: #1a73e8;
+                margin-right: 10px;
+                border-radius: 2px;
+            }
+            .info-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 15px;
+            }
+            .info-item {
+                margin-bottom: 12px;
+            }
+            .info-label {
+                font-weight: 500;
+                color: #666;
+                font-size: 14px;
+                margin-bottom: 4px;
+            }
+            .info-value {
+                font-size: 16px;
+                word-break: break-word;
+            }
+            .items-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 10px;
+            }
+            .items-table th {
+                background: #f8f9fa;
+                text-align: left;
+                padding: 12px 15px;
+                font-weight: 600;
+                border-bottom: 2px solid #eee;
+            }
+            .items-table td {
+                padding: 12px 15px;
+                border-bottom: 1px solid #eee;
+            }
+            .items-table tr:hover {
+                background-color: #f8f9ff;
+            }
+            .status-badge {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 500;
+            }
+            .status-200 { background: #e6f7e9; color: #0f9d58; }
+            .status-392 { background: #fff8e1; color: #f57c00; }
+            .status-214 { background: #ffebee; color: #d32f2f; }
+            .price-cell {
+                font-weight: 500;
+                color: #1a73e8;
+            }
+            .loading {
+                text-align: center;
+                padding: 30px;
+                display: none;
+            }
+            .error {
+                color: #d32f2f;
+                background: #ffebee;
+                padding: 15px;
+                border-radius: 8px;
+                margin-top: 20px;
+                display: none;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="search-container">
+            <h1>Поиск заказа</h1>
+            <input type="text" 
+                   class="search-box" 
+                   id="orderInput" 
+                   placeholder="Введите ID заказа"
+                   autocomplete="off"
+                   onkeydown="handleKeyPress(event)">
+            <p class="instructions">Введите ID заказа и нажмите Enter для поиска</p>
+            <div class="loading" id="loading">Загрузка данных...</div>
+            <div class="error" id="error"></div>
+        </div>
+        
+        <div class="order-container" id="orderContainer">
+            <!-- Здесь будет отображаться заказ -->
+        </div>
+
+        <script>
+            function handleKeyPress(event) {
+                if (event.key === 'Enter') {
+                    const orderId = document.getElementById('orderInput').value.trim();
+                    if (orderId) {
+                        loadOrder(orderId);
+                    }
+                }
+            }
+            
+            function loadOrder(orderId) {
+                // Показываем индикатор загрузки
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('orderContainer').style.display = 'none';
+                
+                fetch('/order/' + encodeURIComponent(orderId))
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Заказ не найден');
+                        }
+                        return response.json();
+                    })
+                    .then(order => {
+                        renderOrder(order);
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('orderContainer').style.display = 'block';
+                    })
+                    .catch(error => {
+                        document.getElementById('loading').style.display = 'none';
+                        const errorElement = document.getElementById('error');
+                        errorElement.textContent = 'Ошибка: ' + error.message;
+                        errorElement.style.display = 'block';
+                    });
+            }
+            
+            function renderOrder(order) {
+                const container = document.getElementById('orderContainer');
+                
+                // Форматирование даты
+                const dateCreated = new Date(order.date_created);
+                const formattedDate = dateCreated.toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                
+                // Форматирование цены
+                function formatPrice(price) {
+                    return new Intl.NumberFormat('ru-RU', {
+                        style: 'currency',
+                        currency: order.payment.currency || 'RUB',
+                        minimumFractionDigits: 0
+                    }).format(price);
+                }
+                
+                // Генерация HTML для товаров
+                let itemsHTML = '';
+                if (order.items && order.items.length > 0) {
+                    itemsHTML = `
+                        <table class="items-table">
+                            <thead>
+                                <tr>
+                                    <th>Товар</th>
+                                    <th>Бренд</th>
+                                    <th>Цена</th>
+                                    <th>Размер</th>
+                                    <th>Статус</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${order.items.map(item => `
+                                    <tr>
+                                        <td>${item.name}</td>
+                                        <td>${item.brand}</td>
+                                        <td class="price-cell">${formatPrice(item.price)}</td>
+                                        <td>${item.size}</td>
+                                        <td><span class="status-badge status-${item.status}">${item.status}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+                
+                // Основной шаблон заказа
+                container.innerHTML = `
+                    <div class="order-header">
+                        <div class="order-id">Заказ: ${order.order_uid}</div>
+                        <div class="track-number">${order.track_number}</div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Общая информация</div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Дата создания</div>
+                                <div class="info-value">${formattedDate}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Служба доставки</div>
+                                <div class="info-value">${order.delivery_service}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Локаль</div>
+                                <div class="info-value">${order.locale}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Внутренняя подпись</div>
+                                <div class="info-value">${order.internal_signature}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Доставка</div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Получатель</div>
+                                <div class="info-value">${order.delivery.name}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Телефон</div>
+                                <div class="info-value">${order.delivery.phone}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Адрес</div>
+                                <div class="info-value">${order.delivery.zip}, ${order.delivery.city}, ${order.delivery.address}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Регион</div>
+                                <div class="info-value">${order.delivery.region}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Email</div>
+                                <div class="info-value">${order.delivery.email}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Оплата</div>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Транзакция</div>
+                                <div class="info-value">${order.payment.transaction}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Сумма</div>
+                                <div class="info-value">${formatPrice(order.payment.amount)}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Доставка</div>
+                                <div class="info-value">${formatPrice(order.payment.delivery_cost)}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Товары</div>
+                                <div class="info-value">${formatPrice(order.payment.goods_total)}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Комиссия</div>
+                                <div class="info-value">${formatPrice(order.payment.custom_fee)}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Банк</div>
+                                <div class="info-value">${order.payment.bank}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Провайдер</div>
+                                <div class="info-value">${order.payment.provider}</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="section">
+                        <div class="section-title">Товары (${order.items ? order.items.length : 0})</div>
+                        ${itemsHTML}
+                    </div>
+                `;
+            }
+        </script>
+    </body>
+    </html>

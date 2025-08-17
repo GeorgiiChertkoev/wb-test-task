@@ -72,7 +72,7 @@ func MakeRandomOrder() *Order {
 			Email:    gofakeit.Email(),
 		},
 		Payment: Payment{
-			Transaction:  orderUID,
+			Transaction:  gofakeit.UUID(),
 			RequestID:    gofakeit.UUID(),
 			Currency:     gofakeit.CurrencyShort(),
 			Provider:     gofakeit.RandomString([]string{"wbpay", "applepay", "googlepay"}),

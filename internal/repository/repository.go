@@ -10,22 +10,28 @@ import (
 	"orders/pkg/models"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const cache_capacity = 500
+const max_db_connections = 50
 
 type OrderRepo struct {
-	conn  *pgx.Conn
+	pool  *pgxpool.Pool
 	cache cache.Cache
 }
 
 func (repo *OrderRepo) InitRepo(dburl string) error {
-	ctx := context.Background()
-
-	var err error
-	repo.conn, err = pgx.Connect(ctx, dburl)
+	config, err := pgxpool.ParseConfig(dburl)
 	if err != nil {
-		log.Printf("Couldn't connect to db by url %s: %s\n", dburl, err)
+		log.Printf("Couldn't parse config: %v", err)
+		return err
+	}
+	config.MaxConns = max_db_connections
+
+	repo.pool, err = pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		log.Printf("Couldn't make pool: %v", err)
 		return err
 	}
 
@@ -66,7 +72,9 @@ func (repo *OrderRepo) Find(order_uid string) (order models.Order, found bool, e
 
 func (repo *OrderRepo) GetAllRows() pgx.Rows {
 	/* TEST FUNCTION */
-	rows, err := repo.conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
+	conn, _ := repo.pool.Acquire(context.Background())
+	defer conn.Release()
+	rows, err := conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
        internal_signature, customer_id,delivery_service,shardkey, sm_id,
        date_created, oof_shard FROM "order"`)
 	if err != nil {
@@ -76,7 +84,14 @@ func (repo *OrderRepo) GetAllRows() pgx.Rows {
 }
 
 func (repo *OrderRepo) GetOrders(quantity int) ([]models.Order, error) {
-	rows, err := repo.conn.Query(context.Background(),
+	conn, err := repo.pool.Acquire(context.Background())
+	if err != nil {
+		log.Printf("Failed to get conn from pool: %v", err)
+		return nil, err
+	}
+	defer conn.Release()
+
+	rows, err := conn.Query(context.Background(),
 		`SELECT order_uid FROM "order" LIMIT $1`, quantity)
 	if err != nil {
 		log.Printf("Failed to fetch ids to to get orders: %v", err)
@@ -113,12 +128,18 @@ func (repo *OrderRepo) GetOrders(quantity int) ([]models.Order, error) {
 }
 
 func (repo *OrderRepo) Close() {
-	repo.conn.Close(context.Background())
-
+	repo.pool.Close()
 }
 
 func (repo *OrderRepo) saveToDB(order *models.Order) error {
-	tx, err := repo.conn.Begin(context.Background())
+	conn, err := repo.pool.Acquire(context.Background())
+	if err != nil {
+		log.Printf("Failed to get conn from pool: %v", err)
+		return err
+	}
+	defer conn.Release()
+
+	tx, err := conn.Begin(context.Background())
 	if err != nil {
 		log.Printf("Unable to begin transaction: %v\n", err)
 		return err
@@ -209,7 +230,15 @@ func (repo *OrderRepo) saveToDB(order *models.Order) error {
 func (repo *OrderRepo) getFromDB(order_uid string) (order models.Order, found bool, err error) {
 	ctx := context.Background()
 	found = true
-	tx, err := repo.conn.BeginTx(ctx, pgx.TxOptions{
+
+	conn, err := repo.pool.Acquire(context.Background())
+	if err != nil {
+		log.Printf("Failed to get conn from pool: %v", err)
+		return
+	}
+	defer conn.Release()
+
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel: pgx.ReadCommitted,
 	})
 	defer tx.Rollback(ctx)

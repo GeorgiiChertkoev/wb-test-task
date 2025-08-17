@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS "order" (
     order_uid          VARCHAR(255) PRIMARY KEY,
     track_number       VARCHAR(255) NOT NULL,
     entry              VARCHAR(50) NOT NULL,
-    locale             VARCHAR(10) NOT NULL,
+    locale             VARCHAR(255) NOT NULL,
     internal_signature VARCHAR(255),
     customer_id        VARCHAR(255) NOT NULL,
     delivery_service   VARCHAR(100) NOT NULL,

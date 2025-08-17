@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 
 	"orders/internal/repository"
 	"orders/pkg/models"
@@ -41,9 +43,28 @@ func NewApp(dburl string) (*App, error) {
 }
 
 func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("Opened home page")
-	w.Write([]byte("Welcome Home!\n\n"))
-	orders, err := a.repo.GetOrders(50)
+	html, err := os.ReadFile("web/templates/index.html")
+	if err != nil {
+		log.Printf("Error reading index.html: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, "internal error")
+		return
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	w.Write(html)
+}
+
+func (a *App) GetNOrders(w http.ResponseWriter, r *http.Request) {
+	count := mux.Vars(r)["count"]
+	amount, err := strconv.Atoi(count)
+	if err != nil {
+		log.Printf("Error converting string to int: %v", err)
+		fmt.Fprintf(w, "Bad Request")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	orders, err := a.repo.GetOrders(amount)
 	if err != nil {
 		log.Printf("Failed to get orders for homepage: %v", err)
 		return

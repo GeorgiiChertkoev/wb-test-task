@@ -29,7 +29,7 @@ func main() {
 	r := mux.NewRouter()
 
 	r.HandleFunc("/", myApp.HomeHandler)
-	r.HandleFunc("/api/add", myApp.Insert)
+	r.HandleFunc("/order/random/{count}", myApp.GetNOrders)
 	r.HandleFunc("/order/{order_uid}", myApp.GetById)
 	log.Println("Server is up")
 	http.ListenAndServe(":8081", r)
