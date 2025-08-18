@@ -7,12 +7,6 @@ import (
 	"orders/pkg/models"
 )
 
-/*
-
-	UNTESTED
-
-*/
-
 type Cache struct {
 	/*
 		Кэш с LRU политикой вытеснения

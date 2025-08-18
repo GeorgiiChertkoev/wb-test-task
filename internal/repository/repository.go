@@ -70,19 +70,6 @@ func (repo *OrderRepo) Find(order_uid string) (order models.Order, found bool, e
 	return repo.getFromDB(order_uid)
 }
 
-func (repo *OrderRepo) GetAllRows() pgx.Rows {
-	/* TEST FUNCTION */
-	conn, _ := repo.pool.Acquire(context.Background())
-	defer conn.Release()
-	rows, err := conn.Query(context.Background(), `SELECT order_uid, track_number, entry, locale,
-       internal_signature, customer_id,delivery_service,shardkey, sm_id,
-       date_created, oof_shard FROM "order"`)
-	if err != nil {
-		log.Printf("Failed to get all rows: %v", err)
-	}
-	return rows
-}
-
 func (repo *OrderRepo) GetOrders(quantity int) ([]models.Order, error) {
 	conn, err := repo.pool.Acquire(context.Background())
 	if err != nil {
