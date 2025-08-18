@@ -116,7 +116,7 @@ func (repo *OrderRepo) GetOrders(quantity int) ([]models.Order, error) {
 
 	var orders []models.Order
 	for i := 0; i < len(uids); i++ {
-		order, found, err := repo.getFromDB(uids[i])
+		order, found, err := repo.Find(uids[i])
 		if !found {
 			log.Printf("order %v not found\n", uids[i])
 		} else if err != nil {

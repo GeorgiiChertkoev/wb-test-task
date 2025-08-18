@@ -55,6 +55,13 @@ func (a *App) HomeHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(html)
 }
 
+// GetNOrders godoc
+// @Summary      Get N random orders
+// @Description  Возвращает случайные заказы (для тестов или демонстрации)
+// @Tags         order
+// @Param        count  path      int  true  "Number of random orders to return"
+// @Success      200    {array}   models.Order
+// @Router       /order/random/{count} [get]
 func (a *App) GetNOrders(w http.ResponseWriter, r *http.Request) {
 	count := mux.Vars(r)["count"]
 	amount, err := strconv.Atoi(count)
@@ -69,17 +76,22 @@ func (a *App) GetNOrders(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Failed to get orders for homepage: %v", err)
 		return
 	}
-	for i := 0; i < len(orders); i++ {
-		json_data, err := json.MarshalIndent(orders[i], "", "\t")
-		if err != nil {
-			log.Printf("Error making json: %v", err)
-		}
-		fmt.Fprintf(w, "%s\n", json_data)
-		fmt.Fprintf(w, "----------------------------------------\n")
+	json_data, err := json.MarshalIndent(orders, "", "  ")
+	if err != nil {
+		log.Printf("Error making json: %v", err)
 	}
+	fmt.Fprintf(w, "%s\n", json_data)
+
 }
 
+// GetById godoc
+// @Summary      Get order by UID
+// @Tags         order
+// @Param        order_uid  path      string  true  "Order UID"
+// @Success      200        {object}  models.Order
+// @Router       /order/{order_uid} [get]
 func (a *App) GetById(w http.ResponseWriter, r *http.Request) {
+	// @Failure      404  {object}  ErrorResponse
 	order_uid := mux.Vars(r)["order_uid"]
 	order, found, err := a.repo.Find(order_uid)
 	if !found {
@@ -96,12 +108,6 @@ func (a *App) GetById(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Fprintf(w, "%s\n", json_data)
 
-}
-
-func (a *App) Insert(w http.ResponseWriter, r *http.Request) {
-	log.Println("Opened insert page")
-
-	a.repo.Store(models.MakeRandomOrder())
 }
 
 func (a *App) runConsumer() {
@@ -131,8 +137,6 @@ func (a *App) runConsumer() {
 			log.Printf("Failed to unmarshal order: %v", err)
 			continue
 		}
-		json_text, _ := json.MarshalIndent(new_order, "", "\t")
-		log.Println("consumed:", string(json_text))
 
 		err = a.repo.Store(&new_order)
 		if err != nil {
