@@ -5,6 +5,11 @@
 
 Микросервис для обработки и отображения данных о заказах с использованием Kafka, PostgreSQL и in-memory кэша.
 
+## Главная страница
+
+![домашняя страница](images/home-page.png)
+
+
 ## Функционал
 
 - Получение данных о заказах из Kafka
@@ -105,3 +110,5 @@ docker compose up -d
 
 ![Схема базы данных](images/db-schema.png)
 
+## Короткое демо сервиса
+https://disk.yandex.ru/i/DzIsDuUBBG1EmQ
